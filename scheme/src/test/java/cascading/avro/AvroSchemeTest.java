@@ -635,12 +635,12 @@ public class AvroSchemeTest extends Assert {
         HadoopFlowConnector flowConnector = new HadoopFlowConnector();
 
     // create source and sink taps
-        Tap docTap = new Lfs( new TextLine( new Fields("text")), docPath );
-        Tap wcTap = new Lfs( new AvroScheme( schema ), wcPath+"/nested", SinkMode.REPLACE );
+        Tap docTap = new Lfs( new TextLine( new Fields("text", String.class)), docPath );
+        Tap wcTap = new Lfs( new AvroScheme(), wcPath+"/nested", SinkMode.REPLACE );
 
     // specify a regex operation to split the "document" text lines into a token stream
-        Fields token = new Fields( "token" );
-        Fields text = new Fields( "text" );
+        Fields token = new Fields( "token", String.class );
+        Fields text = new Fields( "text" , String.class);
         RegexSplitGenerator splitter = new RegexSplitGenerator( token, "[ \\[\\]\\(\\),.]" );
     // only returns "token"
         Pipe docPipe = new Each( "token", text, splitter, Fields.RESULTS );
@@ -648,7 +648,7 @@ public class AvroSchemeTest extends Assert {
     // determine the word counts
         Pipe wcPipe = new Pipe( "wc", docPipe );
         wcPipe = new GroupBy( wcPipe, token );
-        wcPipe = new Every( wcPipe, Fields.ALL, new Count(), Fields.ALL );
+        wcPipe = new Every( wcPipe, Fields.ALL, new Count(new Fields("count", Long.class)), Fields.ALL );
 
     // connect the taps, pipes, etc., into a flow
         FlowDef flowDef = FlowDef.flowDef()

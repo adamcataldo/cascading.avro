@@ -29,7 +29,7 @@ public class PackedAvroSchemeTest extends Assert {
         "test2.avsc"));
     String in = tempDir.getRoot().toString() + "/recordtest/in";
     String out = tempDir.getRoot().toString() + "/recordtest/out";
-    Tap lfsSource = new Lfs(new PackedAvroScheme<GenericData.Record>(schema), in, SinkMode.REPLACE);
+    Tap lfsSource = new Lfs(new PackedAvroScheme(schema), in, SinkMode.REPLACE);
     TupleEntryCollector write = lfsSource.openForWrite(new HadoopFlowProcess());
     Tuple tuple = Tuple.size(1);
     GenericData.Record record = new GenericData.Record(schema);

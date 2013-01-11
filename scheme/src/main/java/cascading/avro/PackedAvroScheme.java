@@ -115,6 +115,4 @@ public class PackedAvroScheme<T extends GenericContainer> extends AvroScheme {
     tuple.add(record);
     return true;
   }
-
-
 }

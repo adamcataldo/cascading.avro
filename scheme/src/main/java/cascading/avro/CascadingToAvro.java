@@ -20,19 +20,20 @@ import cascading.tuple.TupleEntry;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
-import org.apache.avro.Schema.Type;
+import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.io.BytesWritable;
 
+import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 public class CascadingToAvro {
 
   @SuppressWarnings("serial")
-  private static final Map<Class<?>, Schema.Type> TYPE_MAP = new HashMap<Class<?>, Schema.Type>() {
+  protected static final Map<Class<?>, Schema.Type> TYPE_MAP = new HashMap<Class<?>, Schema.Type>() {
     {
       put(Integer.class, Schema.Type.INT);
       put(Long.class, Schema.Type.LONG);
@@ -46,6 +47,22 @@ public class CascadingToAvro {
       put(List.class, Schema.Type.ARRAY);
       put(Map.class, Schema.Type.MAP);
 
+    }
+  };
+
+  protected static final Map<Schema.Type, Type> SCHEMA_MAP = new HashMap<Schema.Type, Type>() {
+    {
+      put(Schema.Type.INT, Integer.class);
+      put(Schema.Type.LONG, Long.class);
+      put(Schema.Type.BOOLEAN, Boolean.class);
+      put(Schema.Type.DOUBLE, Double.class);
+      put(Schema.Type.FLOAT, Float.class);
+      put(Schema.Type.STRING, String.class);
+      put(Schema.Type.BYTES, BytesWritable.class);
+
+      // Note : Cascading field type for Array and Map is really a Tuple
+      put(Schema.Type.ARRAY, List.class);
+      put(Schema.Type.MAP, Map.class);
     }
   };
 
@@ -148,7 +165,7 @@ public class CascadingToAvro {
 
     Map<String, Object> convertedMap = new HashMap<String, Object>();
     if (obj instanceof Tuple) {
-      Type mapValueType = schema.getValueType().getType();
+      Schema.Type mapValueType = schema.getValueType().getType();
       Tuple tuple = (Tuple) obj;
       if (tuple.size() % 2 == 0) {
         for (int i = 0; i < tuple.size(); i = i + 2) {
@@ -211,10 +228,10 @@ public class CascadingToAvro {
       return toAvro(obj, types.get(0));
     } else if (types.size() > 2) {
       throw new AvroRuntimeException("Unions may only consist of a concrete type and null in cascading.avro");
-    } else if (!types.get(0).getType().equals(Type.NULL) && !types.get(1).getType().equals(Type.NULL)) {
+    } else if (!types.get(0).getType().equals(Schema.Type.NULL) && !types.get(1).getType().equals(Schema.Type.NULL)) {
       throw new AvroRuntimeException("Unions may only consist of a concrete type and null in cascading.avro");
     } else {
-      Integer concreteIndex = (types.get(0).getType() == Type.NULL) ? 1 : 0;
+      Integer concreteIndex = (types.get(0).getType() == Schema.Type.NULL) ? 1 : 0;
       return toAvro(obj, types.get(concreteIndex));
     }
   }

@@ -41,21 +41,23 @@ import org.apache.hadoop.mapred.RecordReader;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 
 public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, Object[], Object[]> {
 
-  protected Schema schema;
   private static final String DEFAULT_RECORD_NAME = "CascadingAvroRecord";
-
+  private static final PathFilter filter = new PathFilter() {
+    @Override
+    public boolean accept(Path path) {
+      return !path.getName().startsWith("_");
+    }
+  };
+  protected Schema schema;
 
   /**
-   * Constructor to read from an Avro source without specifying the schema. If this is used as a sink Scheme
-   * a runtime error will be thrown.
+   * Constructor to read from an Avro source or write to an Avro sink without specifying the schema. If using as a sink,
+   * the sink Fields must have type information and currently Map and List are not supported.
    */
   public AvroScheme() {
     this(null);
@@ -72,14 +74,13 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
     this(CascadingToAvro.generateAvroSchemaFromFieldsAndTypes(DEFAULT_RECORD_NAME, fields, types));
   }
 
-
   /**
    * Create a new Cascading 2.0 scheme suitable for reading and writing data using the Avro serialization format.
    * Note that if schema is null, the Avro schema will be inferred from one of the source files (if this scheme
    * is being used as a source). At the moment, we are unable to infer a schema for a sink (this will change soon with
    * a new version of cascading though).
    *
-   * @param schema     Avro schema, or null if this is to be inferred from source file/outgoing TupleEntry data.
+   * @param schema Avro schema, or null if this is to be inferred from source file/or sink Fields.
    */
   public AvroScheme(Schema schema) {
     this.schema = schema;
@@ -90,11 +91,23 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
     } else {
       Fields cascadingFields = new Fields();
       for (Field avroField : schema.getFields()) {
-        cascadingFields = cascadingFields.append(new Fields(avroField.name()));
+        cascadingFields = cascadingFields.append(
+            new Fields(avroField.name(), CascadingToAvro.SCHEMA_MAP.get(avroField.schema())));
       }
       setSinkFields(cascadingFields);
       setSourceFields(cascadingFields);
     }
+  }
+
+  /**
+   * Helper method to read in a schema when de-serializing the object
+   *
+   * @param in The ObjectInputStream containing the serialized object
+   * @return Schema The parsed schema.
+   */
+  private static Schema readSchema(java.io.ObjectInputStream in) throws IOException {
+    final Schema.Parser parser = new Schema.Parser();
+    return parser.parse(in.readUTF());
   }
 
   /**
@@ -110,7 +123,6 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
     }
   }
 
-
   /**
    * Sink method to take an outgoing tuple and write it to Avro.
    *
@@ -125,11 +137,11 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
       throws IOException {
     TupleEntry tupleEntry = sinkCall.getOutgoingEntry();
 
-      Record record = new Record((Schema) sinkCall.getContext()[0]);
-      Object[] objectArray = CascadingToAvro.parseTupleEntry(tupleEntry, (Schema) sinkCall.getContext()[0]);
-      for (int i = 0; i < objectArray.length; i++) {
-        record.put(i, objectArray[i]);
-      }
+    Record record = new Record((Schema) sinkCall.getContext()[0]);
+    Object[] objectArray = CascadingToAvro.parseTupleEntry(tupleEntry, (Schema) sinkCall.getContext()[0]);
+    for (int i = 0; i < objectArray.length; i++) {
+      record.put(i, objectArray[i]);
+    }
     //noinspection unchecked
     sinkCall.getOutput().collect(new AvroWrapper<Record>(record), NullWritable.get());
 
@@ -169,19 +181,21 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
       Tap<JobConf, RecordReader, OutputCollector> tap,
       JobConf conf) {
     if (schema == null) {
-      throw new RuntimeException("Must provide sink schema");
+      Fields outgoing = getSinkFields();
+      if (!outgoing.hasTypes())
+        throw new RuntimeException("Outgoing Fields object has no type information so you must provide sink schema");
+      List<Class> classes = Arrays.asList(outgoing.getTypesClasses());
+      if (classes.contains(Map.class) || classes.contains(List.class))
+        throw new RuntimeException("Unable to automatically generate a schema with maps or lists");
+      schema = CascadingToAvro.generateAvroSchemaFromFieldsAndTypes(
+          DEFAULT_RECORD_NAME, outgoing, outgoing.getTypesClasses());
     }
     // Set the output schema and output format class
     conf.set(AvroJob.OUTPUT_SCHEMA, schema.toString());
     conf.setOutputFormat(AvroOutputFormat.class);
 
     // add AvroSerialization to io.serializations
-    Collection<String> serializations = conf.getStringCollection("io.serializations");
-    if (!serializations.contains(AvroSerialization.class.getName())) {
-      serializations.add(AvroSerialization.class.getName());
-      conf.setStrings("io.serializations",
-          serializations.toArray(new String[serializations.size()]));
-    }
+    addAvroSerializations(conf);
   }
 
   /**
@@ -211,7 +225,6 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
     setSourceFields(cascadingFields);
     return getSourceFields();
   }
-
 
   /**
    * Source method to take an incoming Avro record and make it a Tuple.
@@ -256,22 +269,13 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
       JobConf conf) {
 
     retrieveSourceFields(flowProcess, tap);
-
     // Set the input schema and input class
     conf.set(AvroJob.INPUT_SCHEMA, schema.toString());
     conf.setInputFormat(AvroInputFormat.class);
 
     // add AvroSerialization to io.serializations
-    Collection<String> serializations = conf.getStringCollection("io.serializations");
-    if (!serializations.contains(AvroSerialization.class.getName())) {
-      serializations.add(AvroSerialization.class.getName());
-      conf.setStrings("io.serializations",
-          serializations.toArray(new String[serializations.size()]));
-    }
-
-
+    addAvroSerializations(conf);
   }
-
 
   /**
    * This method peeks at the source data to get a schema when none has been provided.
@@ -294,7 +298,7 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
     // Now get all the things that are one level down
     for (FileStatus status : new LinkedList<FileStatus>(statuses)) {
       if (status.isDir())
-        for(FileStatus child : Arrays.asList(fs.listStatus(status.getPath(), filter))) {
+        for (FileStatus child : Arrays.asList(fs.listStatus(status.getPath(), filter))) {
           if (child.isDir()) {
             statuses.addAll(Arrays.asList(fs.listStatus(child.getPath(), filter)));
           }
@@ -313,24 +317,18 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
     return Schema.create(Schema.Type.NULL);
   }
 
+  private void addAvroSerializations(JobConf conf) {
+    Collection<String> serializations = conf.getStringCollection("io.serializations");
 
-  private static final PathFilter filter = new PathFilter() {
-    @Override
-    public boolean accept(Path path) {
-      return !path.getName().startsWith("_");
+    if (!serializations.contains(AvroTupleSerialization.class.getName()))
+      serializations.add(AvroTupleSerialization.class.getName());
+
+    if (!serializations.contains(AvroSerialization.class.getName())) {
+      serializations.add(AvroSerialization.class.getName());
     }
-  };
 
 
-  /**
-   * Helper method to read in a schema when de-serializing the object
-   *
-   * @param in The ObjectInputStream containing the serialized object
-   * @return Schema The parsed schema.
-   */
-  private static Schema readSchema(java.io.ObjectInputStream in) throws IOException {
-    final Schema.Parser parser = new Schema.Parser();
-    return parser.parse(in.readUTF());
+    conf.setStrings("io.serializations", serializations.toArray(new String[serializations.size()]));
   }
 
   private void writeObject(java.io.ObjectOutputStream out)
