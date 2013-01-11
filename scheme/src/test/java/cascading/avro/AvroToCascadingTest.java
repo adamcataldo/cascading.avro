@@ -35,6 +35,7 @@ import org.hamcrest.core.IsNull;
 import org.junit.Before;
 import org.junit.Test;
 
+@SuppressWarnings("unchecked")
 public class AvroToCascadingTest {
 
     Record record = null;

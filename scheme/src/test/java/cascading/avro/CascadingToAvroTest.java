@@ -41,6 +41,7 @@ import cascading.tuple.Fields;
 import cascading.tuple.Tuple;
 import cascading.tuple.TupleEntry;
 
+@SuppressWarnings("unchecked")
 public class CascadingToAvroTest {
 
     TupleEntry tupleEntry = null;

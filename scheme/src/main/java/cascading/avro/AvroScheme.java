@@ -53,7 +53,7 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
       return !path.getName().startsWith("_");
     }
   };
-  protected Schema schema;
+  Schema schema;
 
   /**
    * Constructor to read from an Avro source or write to an Avro sink without specifying the schema. If using as a sink,
@@ -92,7 +92,7 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
       Fields cascadingFields = new Fields();
       for (Field avroField : schema.getFields()) {
         cascadingFields = cascadingFields.append(
-            new Fields(avroField.name(), CascadingToAvro.SCHEMA_MAP.get(avroField.schema())));
+            new Fields(avroField.name(), CascadingToAvro.SCHEMA_MAP.get(avroField.schema().getType())));
       }
       setSinkFields(cascadingFields);
       setSourceFields(cascadingFields);
@@ -115,7 +115,7 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
    *
    * @return String representing the schema
    */
-  protected String getJsonSchema() {
+  String getJsonSchema() {
     if (schema == null) {
       return "";
     } else {

@@ -238,14 +238,11 @@ public class AvroTuple extends Tuple {
       return;
 
     int pos = 0;
-    for( int i = 0; i < tuples.length; i++ )
-    {
-      Tuple tuple = tuples[ i ];
-
-      if( tuple == null ) // being defensive
+    for (Tuple tuple : tuples) {
+      if (tuple == null) // being defensive
         continue;
 
-      for( int j = 0; j < tuple.size(); j++ )
+      for (int j = 0; j < tuple.size(); j++)
         set(pos++, tuple.getObject(j));
     }
   }
@@ -388,7 +385,7 @@ public class AvroTuple extends Tuple {
   public Tuple append(Tuple... tuples) {
     Tuple[] appendedTuples = new Tuple[tuples.length+1];
     appendedTuples[0] = this;
-    for (int i = 0; i < tuples.length; i++) appendedTuples[i+1] = tuples[i];
+    System.arraycopy(tuples, 0, appendedTuples, 1, tuples.length);
     return TupleViews.createComposite(appendedTuples);
   }
 
@@ -418,22 +415,12 @@ public class AvroTuple extends Tuple {
       if( lhs == null && rhs == null )
         continue;
 
-      if( lhs == null && rhs != null )
+      if( lhs == null )
         return -1;
-      else if( lhs != null && rhs == null )
+      else if(  rhs == null )
         return 1;
 
-      if (! (lhs instanceof Comparable && rhs instanceof Comparable))
-        continue;
-
-      if (!(lhs instanceof Comparable))
-        return -1;
-
-      if (!(rhs instanceof Comparable))
-        return 1;
-
-
-      int c = ((Comparable) lhs).compareTo(rhs); // guaranteed to not be null
+      @SuppressWarnings("unchecked") int c = ((Comparable) lhs).compareTo(rhs); // guaranteed to not be null
       if( c != 0 )
         return c;
     }
@@ -444,7 +431,33 @@ public class AvroTuple extends Tuple {
 
   @Override
   public boolean equals(Object object) {
-    return record.equals(object);
+    if (!(object instanceof Tuple))
+      return false;
+    if (object instanceof AvroTuple)
+      return record.equals(((AvroTuple) object).getRecord());
+
+    Tuple other = (Tuple) object;
+
+    if( this.size() != other.size() )
+      return false;
+
+    for( int i = 0; i < this.size(); i++ )
+    {
+      Object lhs = this.getObject(i);
+      Object rhs = other.getObject(i);
+
+      if( lhs == null && rhs == null )
+        continue;
+
+      if( lhs == null || rhs == null )
+        return false;
+
+      if( !lhs.equals( rhs ) )
+        return false;
+    }
+
+    return true;
+
   }
 
   @Override
@@ -467,7 +480,7 @@ public class AvroTuple extends Tuple {
     return schema.getFields().size();
   }
 
-  private final void verifyModifiable()
+  private void verifyModifiable()
   {
     if( isUnmodifiable )
       throw new UnsupportedOperationException( "this tuple is unmodifiable" );

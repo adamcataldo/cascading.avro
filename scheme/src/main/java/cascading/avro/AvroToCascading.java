@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class AvroToCascading {
+class AvroToCascading {
 
   public static Object[] parseRecord(Record record, Schema readerSchema) {
 
@@ -49,7 +49,7 @@ public class AvroToCascading {
     return result;
   }
 
-  protected static Object fromAvro(Object obj, Schema schema) {
+  static Object fromAvro(Object obj, Schema schema) {
     switch (schema.getType()) {
 
       case UNION:

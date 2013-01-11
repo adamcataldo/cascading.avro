@@ -30,10 +30,10 @@ import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-public class CascadingToAvro {
+class CascadingToAvro {
 
   @SuppressWarnings("serial")
-  protected static final Map<Class<?>, Schema.Type> TYPE_MAP = new HashMap<Class<?>, Schema.Type>() {
+  private static final Map<Class<?>, Schema.Type> TYPE_MAP = new HashMap<Class<?>, Schema.Type>() {
     {
       put(Integer.class, Schema.Type.INT);
       put(Long.class, Schema.Type.LONG);
@@ -50,7 +50,7 @@ public class CascadingToAvro {
     }
   };
 
-  protected static final Map<Schema.Type, Type> SCHEMA_MAP = new HashMap<Schema.Type, Type>() {
+  static final Map<Schema.Type, Type> SCHEMA_MAP = new HashMap<Schema.Type, Type>() {
     {
       put(Schema.Type.INT, Integer.class);
       put(Schema.Type.LONG, Long.class);
@@ -93,7 +93,7 @@ public class CascadingToAvro {
     return result;
   }
 
-  protected static Object toAvro(Object obj, Schema schema) {
+  static Object toAvro(Object obj, Schema schema) {
     switch (schema.getType()) {
 
       case ARRAY:
@@ -237,8 +237,8 @@ public class CascadingToAvro {
   }
 
   @SuppressWarnings("rawtypes")
-  protected static Schema generateAvroSchemaFromTupleEntry(TupleEntry tupleEntry, String recordName,
-                                                           boolean isNullable) {
+  static Schema generateAvroSchemaFromTupleEntry(TupleEntry tupleEntry, String recordName,
+                                                 boolean isNullable) {
     Fields tupleFields = tupleEntry.getFields();
     List<Field> avroFields = new ArrayList<Field>();
     for (Comparable fieldName : tupleFields) {
@@ -256,7 +256,7 @@ public class CascadingToAvro {
   }
 
   @SuppressWarnings({"unchecked", "rawtypes"})
-  protected static Schema generateAvroSchemaFromElement(Object element, String name, boolean isNullable) {
+  static Schema generateAvroSchemaFromElement(Object element, String name, boolean isNullable) {
     if (element == null) {
       throw new AvroRuntimeException("Can't infer schema from null valued element");
     } else if (isNullable)
