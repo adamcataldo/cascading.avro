@@ -14,13 +14,16 @@
 
 package cascading.avro;
 
+
+import cascading.avro.coercions.AvroBytesCoercion;
+import cascading.avro.coercions.AvroListCoercion;
+import cascading.avro.coercions.AvroMapCoercion;
 import cascading.tuple.Fields;
 import cascading.tuple.Tuple;
 import cascading.tuple.TupleEntry;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
-import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.GenericData.Record;
@@ -52,17 +55,12 @@ class CascadingToAvro {
 
   static final Map<Schema.Type, Type> SCHEMA_MAP = new HashMap<Schema.Type, Type>() {
     {
-      put(Schema.Type.INT, Integer.class);
-      put(Schema.Type.LONG, Long.class);
-      put(Schema.Type.BOOLEAN, Boolean.class);
-      put(Schema.Type.DOUBLE, Double.class);
-      put(Schema.Type.FLOAT, Float.class);
+      put(Schema.Type.INT, int.class);
+      put(Schema.Type.LONG, long.class);
+      put(Schema.Type.BOOLEAN, boolean.class);
+      put(Schema.Type.DOUBLE, double.class);
+      put(Schema.Type.FLOAT, float.class);
       put(Schema.Type.STRING, String.class);
-      put(Schema.Type.BYTES, BytesWritable.class);
-
-      // Note : Cascading field type for Array and Map is really a Tuple
-      put(Schema.Type.ARRAY, List.class);
-      put(Schema.Type.MAP, Map.class);
     }
   };
 
@@ -176,7 +174,7 @@ class CascadingToAvro {
           }
           if (toAvroSchemaType(tuple.getObject(i + 1).getClass()) != mapValueType) {
             throw new AvroRuntimeException(String.format("Found map value with %s instead of expected %s",
-                tuple.getObject(i + 1).getClass(), mapValueType));
+                                                         tuple.getObject(i + 1).getClass(), mapValueType));
           }
           convertedMap.put(tuple.getObject(i).toString(), toAvro(tuple.getObject(i + 1), schema.getValueType()));
         }
@@ -246,7 +244,7 @@ class CascadingToAvro {
         throw new AvroRuntimeException("Can't generate schema from non-string named fields");
       }
       Schema fieldSchema = generateAvroSchemaFromElement(tupleEntry.getObject(fieldName), (String) fieldName,
-          isNullable);
+                                                         isNullable);
       avroFields.add(new Field((String) fieldName, fieldSchema, null, null));
     }
 
@@ -430,7 +428,7 @@ class CascadingToAvro {
       } else {
         Class<?> arrayTypes[] = {fieldTypes[1]};
         schema = Schema.createArray(createAvroSchema(recordName,
-            Fields.offsetSelector(schemeFields.size() - 1, 1), arrayTypes, depth + 1));
+                                                     Fields.offsetSelector(schemeFields.size() - 1, 1), arrayTypes, depth + 1));
       }
       return schema;
     } else if (avroType == Schema.Type.MAP) {
@@ -440,7 +438,7 @@ class CascadingToAvro {
       } else {
         Class<?> mapTypes[] = {fieldTypes[1]};
         schema = Schema.createMap(createAvroSchema(recordName,
-            Fields.offsetSelector(schemeFields.size() - 1, 1), mapTypes, depth + 1));
+                                                   Fields.offsetSelector(schemeFields.size() - 1, 1), mapTypes, depth + 1));
       }
       return schema;
     } else if (avroType == Schema.Type.RECORD) {
@@ -467,5 +465,25 @@ class CascadingToAvro {
     } else {
       throw new UnsupportedOperationException("The class type " + clazz + " is currently unsupported");
     }
+  }
+
+  public static Type getCoercibleType(Schema schema) {
+    Schema.Type type = schema.getType();
+
+    if (SCHEMA_MAP.containsKey(type))
+      return SCHEMA_MAP.get(type);
+
+    if (type == Schema.Type.ARRAY)
+      return new AvroListCoercion(schema.getElementType());
+
+    if (type == Schema.Type.MAP)
+      return new AvroMapCoercion(schema.getValueType());
+
+    if (type == Schema.Type.BYTES)
+      return new AvroBytesCoercion();
+
+    return Object.class;
+
+//    throw new AvroRuntimeException("Support for generation of " + schema.getType() +  " not implemented yet.");
   }
 }

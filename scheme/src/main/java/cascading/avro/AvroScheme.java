@@ -92,7 +92,7 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
       Fields cascadingFields = new Fields();
       for (Field avroField : schema.getFields()) {
         cascadingFields = cascadingFields.append(
-            new Fields(avroField.name(), CascadingToAvro.SCHEMA_MAP.get(avroField.schema().getType())));
+            new Fields(avroField.name(), CascadingToAvro.getCoercibleType(avroField.schema())));
       }
       setSinkFields(cascadingFields);
       setSourceFields(cascadingFields);
@@ -105,7 +105,7 @@ public class AvroScheme extends Scheme<JobConf, RecordReader, OutputCollector, O
    * @param in The ObjectInputStream containing the serialized object
    * @return Schema The parsed schema.
    */
-  private static Schema readSchema(java.io.ObjectInputStream in) throws IOException {
+  protected static Schema readSchema(java.io.ObjectInputStream in) throws IOException {
     final Schema.Parser parser = new Schema.Parser();
     return parser.parse(in.readUTF());
   }
