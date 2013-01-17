@@ -275,7 +275,7 @@ public class AvroSchemeTest extends Assert {
         new ByteArrayInputStream(bytes.toByteArray()));
     final AvroScheme actual = (AvroScheme) iis.readObject();
 
-    assertEquals(expected, actual);
+    assertEquals(expected.schema, actual.schema);
   }
 
 
